@@ -4,7 +4,7 @@
 
 Bring Claude, Codex, and an optional Gemini integration into one research conversation. Keep proposals, disagreements, tool activity, and verification evidence together—and decide when a plan is ready to run.
 
-[中文介绍](README.zh-CN.md) · [Architecture](docs/ARCHITECTURE.md) · [Detailed development notes](docs/DEVELOPMENT.md) · [macOS build guide](desktop/README.md)
+[中文介绍](README.zh-CN.md) · [日本語](README.ja.md) · [Architecture](docs/ARCHITECTURE.md) · [Detailed development notes](docs/DEVELOPMENT.md) · [macOS build guide](desktop/README.md)
 
 ![Research Council workspace with independent answers and a shared research record](docs/images/research-workspace.png)
 

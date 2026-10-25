@@ -2,7 +2,7 @@
 
 **把独立回答、交叉评审、经人类确认的实验执行，放在同一个本地研究工作台里。**
 
-[English](README.md) · [架构说明](docs/ARCHITECTURE.md) · [开发记录](docs/DEVELOPMENT.md) · [macOS 构建说明](desktop/README.md)
+[English](README.md) · [日本語](README.ja.md) · [架构说明](docs/ARCHITECTURE.md) · [开发记录](docs/DEVELOPMENT.md) · [macOS 构建说明](desktop/README.md)
 
 ![Research Council 研究工作台](docs/images/research-workspace.png)
 
