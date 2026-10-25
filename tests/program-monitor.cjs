@@ -1,0 +1,26 @@
+const fs=require('fs'),path=require('path'),os=require('os'),{spawn}=require('child_process'),assert=require('assert/strict');
+const {chromium}=require(path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'));
+const root=path.resolve(__dirname,'..'),data=fs.mkdtempSync(path.join(os.tmpdir(),'council-program-monitor-')),checks=[];
+const check=(v,n)=>{assert.ok(v,n);checks.push(n)};
+(async()=>{const child=spawn('python3',[path.join(__dirname,'ui_fixture.py'),data],{cwd:root});child.stderr.pipe(process.stderr);let browser;
+try{
+ const url=await new Promise((r,j)=>{child.stdout.once('data',b=>r(JSON.parse(b.toString()).url));child.once('exit',c=>j(Error('Fixture '+c)))});
+ browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
+ const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(url);await page.waitForFunction(()=>!!window.RC_DEBUG);await page.locator('#langSelect').selectOption('en');await page.locator('#focusToggle').click();await page.locator('#newSession').click();
+ await page.evaluate(()=>Object.assign(RC_DEBUG.getState().session,{question:'Program-owned fixture',awaitingFirstMessage:false}));await page.locator('#addAgentRail').click();await page.locator('#engineSelect').selectOption('live');
+ for(const field of await page.locator('.registry-card [data-field=rules]').all())await field.fill('PROGRAM_MONITOR_TEST');await page.locator('#registrySave').click();
+ await page.locator('#messageAction').selectOption('review');await page.locator('#sendIntervention').click();await page.locator('[data-controller-status=ready]').waitFor();await page.locator('#messageAction').selectOption('execute');await page.locator('#sendIntervention').click();await page.locator('#executionConfirm').click();
+ await page.locator('[data-native-decision=accept]').waitFor();check((await page.locator('.approval-command').textContent()).includes('epoch=1'),'exact program command is shown before launch');
+ check(!fs.existsSync(path.join(data,'managed-experiments'))||!fs.readdirSync(path.join(data,'managed-experiments'),{recursive:true}).some(f=>String(f).endsWith('process.json')),'process does not launch before command approval');
+ await page.locator('[data-native-decision=accept]').click();await page.locator('[data-activity-phase=monitoring]').waitFor();
+ check((await page.locator('[data-activity-phase=monitoring]').textContent()).includes('monitored by program'),'activity truthfully shows program monitoring rather than model thinking');
+ check(await page.locator('[data-activity-phase=monitoring] [data-task-stop]').count()===1,'program-owned process has a stop action');
+ await page.locator('#workTab').click();await page.locator('#workArea [data-activity-phase=monitoring]').waitFor();
+ await page.locator('[data-task-status=reviewed]').waitFor();const r=await page.evaluate(()=>RC_DEBUG.getState().session.live.controller),task=r.experiments[0];
+ const execution=task.jobs.map(id=>JSON.parse(fs.readFileSync(path.join(data,'jobs',id+'.json')))).find(j=>j.request.kind==='execution');
+ check(execution.fixtureExecutorInvocations===2,'executor is called exactly at start and completion');
+ check(Object.values(execution.managedExperiments)[0].exitCode===0,'real fake-process exit receipt survives in the job');
+ check(task.verification&&task.verification.agentId!==task.execution.agentId,'independent verifier remains separate');
+ check(errors.length===0,'no JavaScript errors');console.log(JSON.stringify({checks,errors},null,2));
+}finally{if(browser)await browser.close();child.kill('SIGINT');await new Promise(r=>child.once('exit',r));fs.rmSync(data,{recursive:true,force:true})}})().catch(e=>{console.error(e);process.exitCode=1});

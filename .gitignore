@@ -1,0 +1,22 @@
+.DS_Store
+__pycache__/
+*.pyc
+.research-council
+work/
+test-results/
+.venv/
+.env
+.env.*
+node_modules/
+
+# Local desktop bundles and private runtime configuration
+*.app/
+*.dmg
+*.zip
+*.pem
+*.key
+auth.json
+credentials.json
+.claude/
+.codex/
+dist/

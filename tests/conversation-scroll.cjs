@@ -1,0 +1,39 @@
+/* Synthetic transcripts only: scroll/navigation must never invoke a model. */
+const fs=require('fs'),path=require('path'),os=require('os'),{spawn}=require('child_process'),assert=require('assert/strict');
+const {chromium}=require(path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'));
+const root=path.resolve(__dirname,'..'),data=fs.mkdtempSync(path.join(os.tmpdir(),'council-scroll-')),checks=[];
+const check=(value,name)=>{assert.ok(value,name);checks.push(name)};
+(async()=>{const child=spawn('python3',[path.join(__dirname,'ui_fixture.py'),data],{cwd:root});child.stderr.pipe(process.stderr);let browser;
+try{
+ const url=await new Promise((r,j)=>{child.stdout.once('data',b=>r(JSON.parse(b.toString()).url));child.once('exit',c=>j(Error('Fixture '+c)))});
+ browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
+ const page=await browser.newPage({viewport:{width:1400,height:900},reducedMotion:'reduce'}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ const paint=()=>page.evaluate(()=>{document.getElementById('langSelect').dispatchEvent(new Event('change'));return new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))});
+ const bottom=()=>page.waitForFunction(()=>{const e=document.getElementById('scroll');return e.scrollHeight-e.clientHeight-e.scrollTop<5});
+ const top=()=>page.locator('#scroll').evaluate(e=>e.scrollTop);
+ await page.goto(url);await page.waitForFunction(()=>!!window.RC_DEBUG);await page.locator('#focusToggle').click();
+ const install=()=>page.evaluate(()=>{const s=RC_DEBUG.getState().session;Object.assign(s,{engine:'live',discussionProtocol:'fixed',view:'debate',stage:'debate',awaitingFirstMessage:false,independentCount:2,debateRound:7,turnIndex:0,paused:true});s.live={roster:structuredClone(s.agentRoster),independent:{claude:{text:'# Independent view\n\n'+('Published evidence. ').repeat(80)},codex:{text:'Second independent view.'}},pending:null,error:null};s.shownTurns=Array.from({length:12},(_,i)=>({type:'agent',id:i%2?'codex':'claude',round:Math.floor(i/2)+1,text:'## Answer '+(i+1)+'\n\n'+Array.from({length:5},(_,j)=>'Paragraph '+i+'-'+j+' '+('Evidence and limitations. ').repeat(20)).join('\n\n')}))});
+ await install();await paint();await bottom();check(await top()>5000,'completed transcript initially opens at the latest message');
+ await page.evaluate(()=>CouncilBridge.flush());await page.reload();await page.waitForFunction(()=>!!window.RC_DEBUG);await bottom();check(await top()>5000,'reload opens the saved discussion at latest, even without a running job');
+ const firstId=await page.evaluate(()=>RC_DEBUG.getState().session.id);
+ await page.locator('#newSession').click();await install();await paint();await bottom();const secondId=await page.evaluate(()=>RC_DEBUG.getState().session.id);
+ await page.locator('#scroll').evaluate(e=>e.scrollTop=600);await page.locator(`[data-session="${firstId}"]`).click();await bottom();check(await top()>5000,'switching discussions does not inherit the previous discussion scroll offset');
+ await page.locator('#scroll').hover();await page.mouse.wheel(0,-30);await page.waitForFunction(()=>{const e=document.getElementById('scroll'),gap=e.scrollHeight-e.clientHeight-e.scrollTop;return gap>5&&gap<60});
+ await page.waitForTimeout(150);const nearTop=await top(),nearAnchor=await page.evaluate(()=>{const rect=document.getElementById('scroll').getBoundingClientRect(),el=[...document.querySelectorAll('#stageArea .prose p')].find(e=>e.getBoundingClientRect().bottom>rect.top&&e.getBoundingClientRect().top<rect.bottom);return {text:el.textContent,y:el.getBoundingClientRect().top}});await page.evaluate(()=>{const s=RC_DEBUG.getState().session;s.live.controller={status:'running'};s.shownTurns.at(-1).text+='\n\nA new live progress message.'});await paint();check(Math.abs(await page.locator('#stageArea .prose p').filter({hasText:nearAnchor.text}).first().evaluate(e=>e.getBoundingClientRect().top)-nearAnchor.y)<4,'a small upward wheel gesture preserves the reading anchor inside the former 60px threshold');
+ await page.locator('#scroll').evaluate(e=>e.scrollTop=3500);await page.waitForTimeout(60);
+ const anchor=await page.evaluate(()=>{const root=document.getElementById('scroll').getBoundingClientRect(),el=[...document.querySelectorAll('#stageArea .prose p')].find(e=>e.getBoundingClientRect().top>=root.top&&e.getBoundingClientRect().top<root.bottom);return {text:el.textContent,y:el.getBoundingClientRect().top}});
+ for(let i=0;i<8;i++){await page.evaluate(n=>{RC_DEBUG.getState().session.live.activity='Tool update '+n;RC_DEBUG.getState().session.shownTurns.at(-1).text+='\n\nProgress '+n},i);await paint()}
+ check(Math.abs(await page.locator('#stageArea .prose p').filter({hasText:anchor.text}).first().evaluate(e=>e.getBoundingClientRect().top)-anchor.y)<4,'repeated busy updates keep the paragraph being read at its screen position');
+ await page.evaluate(()=>RC_DEBUG.getState().session.live.independent.claude.text+='\n\n'+('Extra evidence above the reader. ').repeat(300));await paint();
+ check(Math.abs(await page.locator('#stageArea .prose p').filter({hasText:anchor.text}).first().evaluate(e=>e.getBoundingClientRect().top)-anchor.y)<4,'growth earlier in the transcript restores the reading anchor rather than the old pixel offset');
+ await page.locator('#jumpLatest').click();await bottom();await page.evaluate(()=>RC_DEBUG.getState().session.shownTurns.at(-1).text+='\n\n'+('New output. ').repeat(200));await paint();await bottom();check(true,'View latest resumes following new output');
+ await page.evaluate(()=>{delete RC_DEBUG.getState().session.live.controller;RC_DEBUG.getState().session.shownTurns.at(-1).text+='\n\nFinal completed answer.'});await paint();await bottom();check(true,'the final answer stays followed after the model becomes idle');
+ // Explicit reading-map navigation also opts out before programmatic scrolling.
+ await page.locator('#chatPositionMap button').nth(10).click();await page.waitForTimeout(80);const mapTop=await top();await page.evaluate(()=>RC_DEBUG.getState().session.shownTurns.at(-1).text+='\n\nAnother result.');await paint();check(Math.abs(await top()-mapTop)<4,'reading-map navigation is not undone by a subsequent update');
+ await page.locator('#scroll').evaluate(e=>e.scrollTop=e.scrollHeight);await page.waitForTimeout(60);await page.evaluate(()=>RC_DEBUG.getState().session.shownTurns.at(-1).text+='\n\n'+('After returning to bottom. ').repeat(200));await paint();await bottom();check(true,'manually reaching the bottom restores following');
+ await page.locator('#scroll').hover();await page.mouse.wheel(0,-350);await page.waitForTimeout(80);const beforeResize=await top();await page.setViewportSize({width:1100,height:650});await page.evaluate(()=>RC_DEBUG.getState().session.shownTurns.at(-1).text+='\n\nResize update.');await paint();check(await top()<beforeResize+500,'a footer or viewport resize does not pull a reader to the end');
+ await page.locator('#newSession').click();check(await top()===0&&await page.locator('.discussion-empty').isVisible(),'new empty discussions remain at their empty state');
+ await page.locator(`[data-session="${secondId}"]`).click();await bottom();check(await top()>1000,'reopening another discussion starts at its own latest message');
+ check(!fs.existsSync(path.join(data,'jobs'))||!fs.readdirSync(path.join(data,'jobs')).length,'scrolling and switching never call research models');
+ check(errors.length===0,'no JavaScript errors');console.log(JSON.stringify({checks,errors},null,2));
+}finally{if(browser)await browser.close();child.kill('SIGINT');await new Promise(r=>child.once('exit',r));fs.rmSync(data,{recursive:true,force:true})}})().catch(e=>{console.error(e);process.exitCode=1});

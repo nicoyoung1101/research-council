@@ -1,0 +1,7 @@
+{
+  "id": "paired-metrics-review-v1",
+  "initial": "Use the supplied metrics.csv data. Calculate the mean B3, mean K3, and paired mean difference K3 minus B3. These are three synthetic validation folds from a single seed, not a clinical study. Do not modify files, start experiments or search the web. Return one JSON object with numeric fields meanB3, meanK3, meanDifference and a non-empty limitations string. Do not propose an execution plan.",
+  "followup": "Independently check the arithmetic and assumptions in the available answers. Correct mistakes and preserve disagreement if necessary. Return the same JSON fields and explain limitations: three validation folds and one seed cannot establish clinical effectiveness or robust generalization. Do not modify files, start experiments or search the web. Do not propose an execution plan.",
+  "expected": {"meanB3": 0.80, "meanK3": 0.83, "meanDifference": 0.03},
+  "tolerance": 0.000001
+}

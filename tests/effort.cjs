@@ -1,0 +1,63 @@
+/* Effort catalogs are fixture metadata; no subscription inference is used. */
+const fs=require('fs'),path=require('path'),os=require('os'),{spawn}=require('child_process'),assert=require('assert/strict');
+let pw;try{pw=require('playwright')}catch{pw=require(path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'))}
+const root=path.resolve(__dirname,'..'),data=fs.mkdtempSync(path.join(os.tmpdir(),'council-effort-')),checks=[];
+const check=(v,n)=>{assert.ok(v,n);checks.push(n)};
+(async()=>{const child=spawn('python3',[path.join(__dirname,'ui_fixture.py'),data],{cwd:root});child.stderr.pipe(process.stderr);let browser;
+try{
+ const url=await new Promise((resolve,reject)=>{child.stdout.once('data',d=>resolve(JSON.parse(d.toString()).url));child.once('exit',c=>reject(Error('fixture '+c)))});
+ browser=await pw.chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
+ const page=await browser.newPage({viewport:{width:1600,height:1080}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(url);await page.waitForFunction(()=>!!window.RC_DEBUG);await page.locator('#focusToggle').click();await page.locator('#langSelect').selectOption('en');
+ await page.evaluate(()=>{const a=RC_DEBUG.getState().session.agentRoster.find(a=>a.id==='codex');a.model='gpt-6.1-sol';a.effort='none'});
+ await page.route('**/api/capabilities',async route=>{const response=await route.fetch();await new Promise(r=>setTimeout(r,700));await route.fulfill({response})});
+ await page.locator('#addAgentRail').click();await page.locator('#nativeSettings > summary').click();await page.locator('#discussionProtocol').selectOption('fixed');
+ const card=id=>page.locator('[data-card="'+id+'"]'), field=(id,key)=>card(id).locator('[data-field="'+key+'"]');
+ check(await field('codex','effort').inputValue()==='none','saved unsupported effort is visible instead of silently shown as default');
+ await field('claude','name').fill('My Claude');await field('claude','rules').fill('Preserved draft rules');await field('claude','rules').focus();
+ await page.waitForFunction(()=>document.querySelector('[data-card=codex] [data-field=effort] option[value=ultra]'));
+ check((await page.locator('#cliStatus').textContent()).includes('Installed CLI model catalog')&&(await card('claude').locator('[data-effort-source]').textContent()).includes('Matched'),'CLI capability catalog is distinguished from account entitlement');
+ check(await field('claude','name').inputValue()==='My Claude'&&await field('claude','rules').inputValue()==='Preserved draft rules','asynchronous catalog preserves typed names and rules');
+ check(await field('claude','rules').evaluate(el=>el===document.activeElement),'catalog arrival preserves text focus');
+ check(await field('codex','effort').inputValue()==='none','catalog refresh does not change the stored unsupported level');
+ check((await card('codex').locator('[data-effort-hint]').textContent()).includes('Unsupported'),'known unsupported effort gives an actionable warning');
+ await page.locator('#registrySave').click();check(await page.locator('#registrySave').isVisible(),'save requires fixing a known unsupported enabled-agent effort');
+ await field('codex','effort').selectOption('ultra');
+ check((await field('codex','effort').locator('option').allTextContents()).includes('ultra'),'Codex Sol exposes CLI-reported ultra');
+ await field('codex','model').selectOption('gpt-6-luna');
+ check(await field('codex','effort').locator('option[value=ultra],option[value=none]').count()===0,'Codex Luna offers neither ultra nor none when absent from its catalog');
+ check(await field('codex','effort').inputValue()==='default','explicit model change resets effort to native default');
+ await field('codex','model').selectOption('gpt-6.1-sol');await field('codex','effort').selectOption('ultra');
+ await field('claude','model').selectOption('claude-sonnet-5');
+ check(await field('claude','effort').locator('option[value=xhigh],option[value=max]').count()===2,'Claude exact Sonnet ID resolves alias catalog with xhigh and max');
+ await field('claude','effort').selectOption('max');
+ await field('claude','model').selectOption('haiku');check(await field('claude','effort').locator('option').count()===1,'Claude Haiku without effort support only offers native default');
+ await field('claude','model').selectOption('custom');await field('claude','customModel').fill('claude-sonnet-5');
+ check(await field('claude','effort').locator('option[value=max]').count()===1,'custom model ID updates capabilities immediately');
+ check(await field('claude','customModel').evaluate(el=>el===document.activeElement),'custom model typing keeps focus');
+ await field('claude','effort').selectOption('max');await page.locator('#engineSelect').selectOption('live');await page.locator('#registrySave').click();
+ check(await page.evaluate(()=>RC_DEBUG.getState().session.agentRoster.find(a=>a.id==='codex').effort)==='ultra','selected effort persists without remapping');
+ await page.locator('#nextSpeaker').click();await page.waitForFunction(()=>RC_DEBUG.getState().session.independentCount===1&&!RC_DEBUG.getState().session.live.pending);
+ await page.locator('#nextSpeaker').click();await page.waitForFunction(()=>RC_DEBUG.getState().session.independentCount===2&&!RC_DEBUG.getState().session.live.pending);
+ const jobs=fs.readdirSync(path.join(data,'jobs')).map(f=>JSON.parse(fs.readFileSync(path.join(data,'jobs',f))));
+ check(jobs.some(j=>j.request.kind==='independent'&&j.request.agents.some(a=>a.id==='codex'&&a.effort==='ultra')),'actual queued Codex request freezes ultra unchanged');
+ check(jobs.some(j=>j.request.kind==='independent'&&j.request.agents.some(a=>a.id==='claude'&&a.effort==='max')),'actual queued Claude request freezes max unchanged');
+ await page.locator('#addAgentRail').click();await field('claude','provider').selectOption('gemini');await field('claude','model').selectOption('gemini-3.8-flash-high');
+ check(await field('claude','effort').locator('option').count()===1&&(await field('claude','effort').textContent()).includes('high'),'Gemini displays the effort built into its selected model slug');
+ await page.locator('#registryCancel').click();
+ for(const [lang,phrase] of [['zh','跟随本地 CLI 设置'],['ja','ローカル CLI 設定に従う'],['en','Follow local CLI settings']]){
+  await page.locator('#langSelect').selectOption(lang);await page.locator('#addAgentRail').click();
+  check((await field('codex','effort').textContent()).includes(phrase),'native default explanation localized in '+lang);await page.locator('#registryCancel').click();
+ }
+ await page.evaluate(()=>{const a=RC_DEBUG.getState().session.agentRoster.find(a=>a.id==='claude');a.provider='gemini';a.model='gemini-custom-high';a.effort='high'});
+ await page.locator('#addAgentRail').click();await page.locator('#registrySave').click();
+ check(await field('claude','effort').inputValue()==='high'&&(await card('claude').locator('[data-effort-hint]').textContent()).includes('model variant')&&await page.locator('#registrySave').isVisible(),'legacy Gemini effort stays visible and requires choosing its model variant');
+ await page.locator('#registryCancel').click();
+ await page.evaluate(()=>{const a=RC_DEBUG.getState().session.agentRoster.find(a=>a.id==='claude');a.provider='claude';a.model='claude-sonnet-5';a.effort='max'});
+ await page.evaluate(()=>CouncilBridge.flush());await page.reload();await page.waitForFunction(()=>!!window.RC_DEBUG);await page.locator('#addAgentRail').click();
+ check(await field('codex','effort').inputValue()==='ultra','saved level remains selected before fresh metadata arrives after reload');
+ await page.waitForFunction(()=>document.querySelector('[data-card=codex] [data-field=effort] option[value=max]'));
+ check(await field('codex','effort').inputValue()==='ultra','saved level remains selected after metadata arrives');
+ check(errors.length===0,'no browser JavaScript errors');
+ console.log(JSON.stringify({checks,errors},null,2));
+}finally{if(browser)await browser.close();child.kill('SIGINT');await new Promise(r=>child.once('exit',r));fs.rmSync(data,{recursive:true,force:true})}})().catch(e=>{console.error(e);process.exitCode=1});

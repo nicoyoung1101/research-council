@@ -1,0 +1,41 @@
+/* Targeted public review, alternating next speaker, and unchanged all-member review. Fixture only. */
+const fs=require('fs'),path=require('path'),os=require('os'),{spawn}=require('child_process'),assert=require('assert/strict');
+const {chromium}=require(path.join(process.env.RC_NODE_MODULES||path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules'),'playwright'));
+const root=path.resolve(__dirname,'..'),data=fs.mkdtempSync(path.join(os.tmpdir(),'council-targeted-review-')),checks=[];const check=(v,n)=>{assert.ok(v,n);checks.push(n)};
+(async()=>{const child=spawn('python3',[path.join(__dirname,'ui_fixture.py'),data],{cwd:root});child.stderr.pipe(process.stderr);let browser;
+try{
+ const url=await new Promise((r,j)=>{child.stdout.once('data',b=>r(JSON.parse(b.toString()).url));child.once('exit',c=>j(Error('Fixture '+c)))});
+ browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});const page=await browser.newPage({viewport:{width:1500,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(url);await page.waitForFunction(()=>!!window.RC_DEBUG);await page.locator('#langSelect').selectOption('en');await page.locator('#focusToggle').click();await page.locator('#newSession').click();await page.locator('#addAgentRail').click();await page.locator('#engineSelect').selectOption('live');await page.locator('#registrySave').click();
+ await page.locator('#intervention').fill('An initial research question');await page.locator('#sendIntervention').click();await page.waitForFunction(()=>RC_DEBUG.getState().session.independentCount===2&&RC_DEBUG.getState().session.live.controller.status==='idle');
+ await page.locator('#messageAction').selectOption('review');check(await page.locator('#target').isVisible(),'peer review exposes the recipient selector');await page.locator('#reviewRunMode').selectOption('auto');await page.locator('#target').selectOption('codex');
+ check(await page.locator('#reviewRunMode').isHidden(),'targeting one reviewer overrides automatic all-member scheduling');
+ check((await page.locator('#sendIntervention').textContent())==='Send →'&&await page.locator('#target').inputValue()==='codex','stable Send action retains the explicitly selected reviewer');
+ check(await page.locator('#target option[value=context]').isDisabled(),'future-context recipient cannot be used as a reviewer');
+ await page.locator('#intervention').fill('TARGETED_REVIEW_FOLLOWUP');await page.evaluate(()=>{RC_DEBUG.getState().session.quoteDraft=[{id:'review-quote',source:'Claude',text:'Exact peer statement'}]});await page.locator('#intervention').dispatchEvent('input');
+ await page.locator('#sendIntervention').click();await page.waitForFunction(()=>{const r=RC_DEBUG.getState().session.live.controller;return r.calls===3&&r.status==='idle'});
+ let r=await page.evaluate(()=>RC_DEBUG.getState().session.live.controller);const job=()=>JSON.parse(fs.readFileSync(path.join(data,'jobs',r.jobs.at(-1)+'.json')));let j=job();
+ check(j.request.kind==='debate'&&j.request.profile==='native'&&j.request.agents.map(a=>a.id).join(',')==='codex','targeted review makes one native Codex review call');
+ check(j.request.question==='TARGETED_REVIEW_FOLLOWUP'&&j.request.quotedReferences[0].text==='Exact peer statement','targeted review receives follow-up text and exact selected quotation');
+ check(r.activeQuestion.to==='all'&&r.activeQuestion.reviewerId==='codex','review recipient is separate from public question visibility');
+ check(r.nextSpeaker.id==='claude'&&(await page.locator('#nextSpeaker').getAttribute('title')).includes('Claude'),'next-speaker preview points to the other member');
+ check((await page.locator('.user-turn').last().textContent()).includes('Peer review · Codex'),'public question records which reviewer was selected');
+ await page.evaluate(()=>CouncilBridge.flush());await page.reload();await page.waitForFunction(()=>!!window.RC_DEBUG&&RC_DEBUG.getState().session.live.controller?.calls===3);
+ check(await page.locator('#target').inputValue()==='codex'&&await page.locator('#reviewRunMode').isHidden(),'selected reviewer and single-call scheduling survive reload');
+ await page.locator('#intervention').fill('CLAUDE_SECOND_OPINION');await page.locator('#nextSpeaker').click();await page.waitForFunction(()=>{const r=RC_DEBUG.getState().session.live.controller;return r.calls===4&&r.status!=='running'});r=await page.evaluate(()=>RC_DEBUG.getState().session.live.controller);j=job();
+ check(j.request.agents.map(a=>a.id).join(',')==='claude'&&j.request.kind==='debate','Next speaker with a question calls Claude despite Codex remaining selected');
+ check(j.request.transcript.some(t=>t.text==='TARGETED_REVIEW_FOLLOWUP'&&t.to==='all')&&j.request.transcript.some(t=>t.kind==='debate'&&t.id==='codex'),'next reviewer receives the previous public question and Codex answer');
+ check(j.request.question==='CLAUDE_SECOND_OPINION'&&r.turns.at(-1).replyTo===r.activeQuestion.id,'next reviewer prioritizes the new follow-up and attaches the answer correctly');
+ await page.locator('#intervention').fill('CODEX_THIRD_OPINION');await page.locator('#sendIntervention').click();await page.waitForFunction(()=>{const r=RC_DEBUG.getState().session.live.controller;return r.calls===5&&r.status==='idle'});r=await page.evaluate(()=>RC_DEBUG.getState().session.live.controller);
+ check(r.turns.at(-1).id==='codex'&&r.nextSpeaker.id==='claude','another targeted follow-up stays with Codex and advances next to Claude');
+ await page.locator('#sendIntervention').click();await page.waitForFunction(()=>{const r=RC_DEBUG.getState().session.live.controller;return r.calls===6&&r.status==='idle'});r=await page.evaluate(()=>RC_DEBUG.getState().session.live.controller);
+ check(r.turns.at(-1).id==='codex'&&r.nextSpeaker.id==='claude','empty targeted review also calls the selected member once');
+ await page.locator('#target').selectOption('all');check(await page.locator('#reviewRunMode').isVisible()&&await page.locator('#reviewRunMode').inputValue()==='auto','switching back to all restores the saved scheduling choice');await page.locator('#reviewRunMode').selectOption('manual');await page.locator('#sendIntervention').click();await page.waitForFunction(()=>{const r=RC_DEBUG.getState().session.live.controller;return r.status==='ready'});r=await page.evaluate(()=>RC_DEBUG.getState().session.live.controller);
+ check(r.turns.filter(t=>t.kind==='debate'&&t.round===r.round).length===2,'all-member mode still completes the review round');
+ await page.locator('#target').selectOption('claude');await page.locator('#intervention').fill('PRIVATE_ORDINARY_QUESTION');await page.locator('#messageAction').selectOption('question');await page.locator('#sendIntervention').click();await page.waitForFunction(()=>RC_DEBUG.getState().session.live.controller.questions?.at(-1)?.status==='complete');r=await page.evaluate(()=>RC_DEBUG.getState().session.live.controller);j=JSON.parse(fs.readFileSync(path.join(data,'jobs',r.questions.at(-1).jobId+'.json')));
+ check(j.request.kind==='question'&&j.request.profile==='restricted'&&j.request.agents.map(a=>a.id).join(',')==='claude','switching to question sends an ordinary targeted question');
+ check(r.questions.at(-1).message.to==='claude'&&r.activeQuestion.text==='CODEX_THIRD_OPINION','ordinary private question does not replace the shared review question');
+ await page.locator('#messageAction').selectOption('review');for(const [locale,label] of [['zh','发送 →'],['ja','送信 →'],['en','Send →']]){await page.locator('#langSelect').selectOption(locale);check((await page.locator('#sendIntervention').textContent())===label&&await page.locator('#target').inputValue()==='claude','targeted review localized in '+locale)}
+ for(const theme of ['dark','light']){await page.locator('#themeSelect').selectOption(theme);check(await page.locator('html').getAttribute('data-theme')===theme,'targeted review preserves '+theme+' theme')}
+ check(errors.length===0,'no JavaScript errors');console.log(JSON.stringify({checks,errors},null,2));
+}finally{if(browser)await browser.close();child.kill('SIGINT');await new Promise(r=>child.once('exit',r));fs.rmSync(data,{recursive:true,force:true})}})().catch(e=>{console.error(e);process.exitCode=1});

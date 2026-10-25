@@ -1,0 +1,176 @@
+/* Research Council — Editorial Night (v0.9)
+   All changes below are scoped to dark mode. The original v0.8 layout,
+   modes, event handlers and Light palette remain intact. */
+.theme-switch{display:flex;align-items:center;gap:5px;padding:2px 6px 2px 9px;border:1px solid var(--rule);border-radius:9px;background:var(--surface);color:var(--secondary)}
+.theme-symbol{font-size:13px;line-height:1;min-width:15px;text-align:center;color:var(--green)}
+.theme-switch select{background:transparent!important;border:0!important;min-width:50px;padding:5px 1px!important;color:var(--ink)!important;font-size:11px!important;cursor:pointer}
+@media(max-width:620px){.theme-switch{padding:2px 3px 2px 6px;gap:2px}.theme-switch select{max-width:66px}.theme-symbol{font-size:12px}}
+
+html[data-theme="dark"]{
+  color-scheme:dark;
+  --paper:#171b19;--surface:#222825;--ash:#1d231f;--sand:#1c211e;
+  --ink:#e9ede7;--secondary:#b4c0b5;--faint:#8f9b91;--rule:#343d36;
+  --green:#9dcbb0;--green-light:#253a30;--amber:#d6a47f;--blue:#9fbae3;
+  --shadow:0 8px 28px rgba(3,9,5,.16);
+}
+html[data-theme="dark"] ::selection{background:#527c65;color:white}
+html[data-theme="dark"] :is(input,textarea,select){color:var(--ink)}
+html[data-theme="dark"] :is(input,textarea)::placeholder{color:#91a094}
+html[data-theme="dark"] :is(button,input,textarea,select):focus-visible{outline-color:#93ccb0}
+html[data-theme="dark"] :is(.scroll,.note-body,.rail,.registry-scroll,.dialog,.ctx-list){scrollbar-color:#56645a transparent}
+html[data-theme="dark"] .rail{background:#1b201d}
+html[data-theme="dark"] .mark:before{background:#1b201d}
+html[data-theme="dark"] .brand-caption,html[data-theme="dark"] .caps{color:#97a79a}
+html[data-theme="dark"] .new{background:#29352e;border-color:#46594b;color:#d3ebd9}
+html[data-theme="dark"] .new:hover{background:#33483a}
+html[data-theme="dark"] .session{color:#a6b2a9}
+html[data-theme="dark"] .session.active{color:#dbf0e0;background:#2b4033}
+html[data-theme="dark"] .session:hover:not(.active){background:#28342c}
+html[data-theme="dark"] .text-link,html[data-theme="dark"] .backstage-source{color:#acd4b5}
+html[data-theme="dark"] .backstage-agent{background:#222c25;border-color:#334437}
+html[data-theme="dark"] .backstage-agent b{color:#c3dac6}
+html[data-theme="dark"] .backstage-agent small{color:#92a497}
+html[data-theme="dark"] .backstage-led.off{background:#566159}
+html[data-theme="dark"] .logo{background:#29302b;border-color:#475149}
+html[data-theme="dark"] .logo.grok svg{color:#e1e7e1}
+html[data-theme="dark"] .logo.user{background:#293c31}
+html[data-theme="dark"] .btn{background:#272e29;border-color:#455149;color:#dfebe0}
+html[data-theme="dark"] .btn:hover{background:#344139}
+html[data-theme="dark"] .btn.primary,html[data-theme="dark"] .send{background:#89bea0;border-color:#89bea0;color:#12251a}
+html[data-theme="dark"] .btn.primary:hover,html[data-theme="dark"] .send:hover{background:#a4d6b5;border-color:#a4d6b5}
+html[data-theme="dark"] .btn.quiet{background:transparent;border-color:transparent}
+html[data-theme="dark"] .head-switch{background:#252c27;border-color:#3a453d}
+html[data-theme="dark"] .head-switch button{color:#a1aea4}
+html[data-theme="dark"] .head-switch button.active{background:#3b5042;color:#e0f2e4;box-shadow:none}
+html[data-theme="dark"] .crumb{color:#95a59a}
+html[data-theme="dark"] .crumb strong{color:#b9ccbe}
+html[data-theme="dark"] .pill{background:#293e32;color:#c5e2cb}
+html[data-theme="dark"] .fixed-flow-wrap{background:#1b201d;border-color:#323f35;box-shadow:0 5px 18px #02080533}
+html[data-theme="dark"] .fixed-session-hero .eyebrow{color:#a2c9af}
+html[data-theme="dark"] .eyebrow:before{background:#88b498}
+html[data-theme="dark"] .meta,html[data-theme="dark"] .manual-note{color:#9dad9e}
+html[data-theme="dark"] #modeSelect{color:#bcd7c0!important}
+html[data-theme="dark"] .step{color:#a0aca2}
+html[data-theme="dark"] .step:hover{background:#28382e;color:#d9e8dd}
+html[data-theme="dark"] .step.active{background:#304b3a;color:#def2e1;border-color:#4a6a54}
+html[data-theme="dark"] .step.done{color:#a8c8b1}
+html[data-theme="dark"] .stage-name{color:#b1c3b1}
+html[data-theme="dark"] .opinion,html[data-theme="dark"] .turn-box,
+html[data-theme="dark"] .synthesis,html[data-theme="dark"] .work-card,
+html[data-theme="dark"] .wflow-card{background:var(--surface);border-color:#3b463e;color:#cbd8cd}
+html[data-theme="dark"] .opinion.empty{background:#1e2420;border-color:#49554b;color:#adbbaa}
+html[data-theme="dark"] .opinion.empty svg,html[data-theme="dark"] .opinion.empty small{color:#93a496}
+html[data-theme="dark"] .op-text,html[data-theme="dark"] .turn-box p,
+html[data-theme="dark"] .synthesis :is(p,li){color:#b8c8bc}
+html[data-theme="dark"] .op-status,html[data-theme="dark"] .op-sub,
+html[data-theme="dark"] .op-foot,html[data-theme="dark"] .turn-seq{color:#99ad9d}
+html[data-theme="dark"] .op-foot{border-color:#3c463d}
+html[data-theme="dark"] .tag{background:#304435;color:#c3e2c7}
+html[data-theme="dark"] .subhint,html[data-theme="dark"] .timeline-desc{color:#a2b4a5}
+html[data-theme="dark"] .turn:before{background:#48574b}
+html[data-theme="dark"] .turn-ref{color:#9aafa0}
+html[data-theme="dark"] .turn-box blockquote{border-color:#739c7b;color:#a5bca9}
+html[data-theme="dark"] .turn.user-turn .turn-box{background:#293a30;border-color:#4c6954}
+html[data-theme="dark"] .link-btn{color:#b4d7ba}
+html[data-theme="dark"] .stage-empty{border-color:#465449;color:#a5b3a6}
+html[data-theme="dark"] .note-panel{background:#1d231f}
+html[data-theme="dark"] .note-sub,html[data-theme="dark"] .note-head small,
+html[data-theme="dark"] .note-intro{color:#a1aea5}
+html[data-theme="dark"] .section-label{color:#adc4b0}
+html[data-theme="dark"] .section-label:before{background:#87ad92}
+html[data-theme="dark"] .note-body :is(ul,p){color:#bdcbbf}
+html[data-theme="dark"] .note-proposal{background:#29372d;border-color:#485e4d}
+html[data-theme="dark"] .note-proposal .label{color:#c6e4cd}
+html[data-theme="dark"] .note-proposal p{color:#bfcfc1}
+html[data-theme="dark"] .note-proposal .source{color:#a1b9a6}
+html[data-theme="dark"] .proposal-actions button{background:#344a39;color:#ddeddf;border-color:#58725d}
+html[data-theme="dark"] .desk-footer{background:#1b201d}
+html[data-theme="dark"] .foot-status{color:#a2b3a4}
+html[data-theme="dark"] .composer{background:#242c26;border-color:#4b5b4f;box-shadow:0 4px 18px #040d0822}
+html[data-theme="dark"] .composer textarea{background:transparent;color:#e9f0e8}
+html[data-theme="dark"] .composer textarea::placeholder{color:#a7b5a8}
+html[data-theme="dark"] .composer select{background:#344038;color:#d9e7db}
+html[data-theme="dark"] .attach-button{background:#313c34;border-color:#4a5c4d;color:#c5dec9}
+html[data-theme="dark"] .attach-button:hover{background:#415448}
+html[data-theme="dark"] .overlay{background:#020703b8}
+html[data-theme="dark"] .dialog{background:#202722;border-color:#445248;box-shadow:0 25px 90px #000a}
+html[data-theme="dark"] .dialog-desc,html[data-theme="dark"] .picker .p-sub{color:#a7b9aa}
+html[data-theme="dark"] .field label{color:#c5d8c7}
+html[data-theme="dark"] .field :is(input,textarea,select){border-color:#4c5b4e;background:#2b352d;color:#dce8df}
+html[data-theme="dark"] .picker{border-color:#455248}
+html[data-theme="dark"] .picker.checked{background:#2a4231;border-color:#607b65}
+html[data-theme="dark"] .picker .p-check{color:#aad2b2}
+html[data-theme="dark"] .work-chip{color:#a6b9a9}
+html[data-theme="dark"] .work-chip.active{background:#304936;color:#d3ecda;border-color:#5a795f}
+html[data-theme="dark"] .work-chip.done{color:#b3d3ba}
+html[data-theme="dark"] .work-log{background:#161e19;color:#c3d6c8}
+html[data-theme="dark"] .paper button{background:#303c33;color:#c6e1cd}
+html[data-theme="dark"] .paper small{color:#a6b8aa}
+html[data-theme="dark"] .editnotes{background:#252e27;border-color:#465b4a;color:#d8e8dd}
+html[data-theme="dark"] .context-chip{background:#2b4435;color:#c7e6ce;border-color:#56735a}
+html[data-theme="dark"] .context-chip button{color:#d9efdf}
+html[data-theme="dark"] .ctx-search{background:#29332b;border-color:#4e604f}
+html[data-theme="dark"] .ctx-row{background:#263029;border-color:#435249}
+html[data-theme="dark"] .ctx-row small,html[data-theme="dark"] .ctx-row p{color:#b2c3b4}
+html[data-theme="dark"] .ctx-row button{background:#344c39;color:#c8e7ce;border-color:#617863}
+html[data-theme="dark"] .ctx-row button.active{background:#486c4f}
+html[data-theme="dark"] .ctx-banner,html[data-theme="dark"] .work-bridge{background:#293c30;border-color:#47624d;color:#c8d9c9}
+html[data-theme="dark"] .ctx-banner strong,html[data-theme="dark"] .work-bridge b{color:#caeaca}
+html[data-theme="dark"] .ctx-banner :is(small,.ctx-code),html[data-theme="dark"] .work-bridge p{color:#b5c9b7}
+html[data-theme="dark"] .source-tag{background:#324939;color:#c8dcc9;border-color:#55715a}
+html[data-theme="dark"] .workflow-demo h2,html[data-theme="dark"] .wflow-card h3{color:#e3efe4}
+html[data-theme="dark"] .workflow-demo .lead,html[data-theme="dark"] .wflow-card :is(p,ul),html[data-theme="dark"] .wflow-history p{color:#b9cbba}
+html[data-theme="dark"] .wflow-banner{background:#2b3b2d;color:#c4d9c6;border-color:#4a5e4a}
+html[data-theme="dark"] .wflow-seg{background:#28342b;border-color:#435345;color:#aabfab}
+html[data-theme="dark"] .wflow-seg.on{background:#3c5944;color:#e0eee2;border-color:#68856c}
+html[data-theme="dark"] .wflow-seg.done{background:#304435;color:#b9d6bf}
+html[data-theme="dark"] .wflow-label{background:#324b3a;color:#c8e3ce}
+html[data-theme="dark"] .wflow-history{border-color:#3a4c3e}
+html[data-theme="dark"] .wflow-history p{border-color:#344839}
+html[data-theme="dark"] .wflow-cast select{background:#2a372d;color:#d6e8d9;border-color:#4b654f}
+html[data-theme="dark"] .wflow-cast :is(label,.reviewers),html[data-theme="dark"] .wflow-tip{color:#aec2b0}
+html[data-theme="dark"] .registry-toolbar,html[data-theme="dark"] .registry-footnote{color:#a9bfae}
+html[data-theme="dark"] .registry-card{background:#26302a;border-color:#48574b;box-shadow:0 3px 9px #0002}
+html[data-theme="dark"] .registry-identity small,html[data-theme="dark"] .registry-validation small{color:#acbdad}
+html[data-theme="dark"] .registry-switch,html[data-theme="dark"] .registry-tools{color:#bfcebf}
+html[data-theme="dark"] .registry-miniaction{background:#344238;border-color:#56695b;color:#d9e9db}
+html[data-theme="dark"] .registry-miniaction:hover{background:#425449}
+html[data-theme="dark"] .registry-input-grid label{color:#c0d0c0}
+html[data-theme="dark"] .registry-input-grid :is(input,select){background:#1e2721;border-color:#4d5e50;color:#e0ebdf}
+html[data-theme="dark"] .registry-validation{color:#e3bc97}
+html[data-theme="dark"] .registry-tools{border-color:#3c4e40}
+html[data-theme="dark"] .help-popover{background:#29342b;border-color:#536557;color:#d4e6d5;box-shadow:0 12px 35px #0008}
+html[data-theme="dark"] .help-popover strong{color:#d6efd9}
+html[data-theme="dark"] .help-popover small{color:#b8cbb9;border-color:#46594a}
+html[data-theme="dark"] .consensus-pill{background:#26352a!important;border-color:#47624c!important;color:#d0e8d5!important}
+html[data-theme="dark"] .consensus-pill strong{color:#d5f0d8}
+html[data-theme="dark"] .consensus-pill :is(.consensus-caption,.consensus-delta){color:#b1c6b5}
+html[data-theme="dark"] .consensus-detail,html[data-theme="dark"] .consensus-modal{background:#222c25;color:#dfebdf}
+html[data-theme="dark"] .claim-list{border-color:#49574c}
+html[data-theme="dark"] .claim-line{border-color:#3c493f;color:#bdcebe}
+html[data-theme="dark"] .claim-line b{color:#bedfc3}
+html[data-theme="dark"] .claim-line b.dissent{color:#edb78f}
+html[data-theme="dark"] .round-chips button{background:#2a372e;border-color:#4b5d4f;color:#d1e3d4}
+html[data-theme="dark"] .round-chips button.active{background:#405c47;color:#e5f4e8;border-color:#61856a}
+html[data-theme="dark"] .simulated-ribbon{background:#443629;border-color:#66503a;color:#e4b58e}
+html[data-theme="dark"] .toast{background:#b9dfc4;color:#1d3525}
+html[data-theme="dark"] .language-picker{background:#252e28;border-color:#4a5a4c;color:#dfebdf}
+
+/* Native select popups should use the same palette in Chromium and Safari. */
+html[data-theme="dark"] select option{background:#273029;color:#e4ede4}
+/* A few legacy surfaces use literal white instead of the palette variables. */
+html[data-theme="dark"] .run-mode select{background:#263029;border-color:#4b5e4e;color:#e0ecdf}
+html[data-theme="dark"] .consensus-pill:hover{background:#314636!important}
+html[data-theme="dark"] .consensus-panel .chartframe{background:#263028;border-color:#48574b}
+html[data-theme="dark"] .trend-header small,html[data-theme="dark"] .metric-warning{color:#aebfaf}
+html[data-theme="dark"] .agent-config{border-color:#45554a}
+html[data-theme="dark"] .agent-config :is(select,.custom-model){background:#27332a;border-color:#4c5c4e;color:#d8e7d9}
+html[data-theme="dark"] .model-disclaimer,html[data-theme="dark"] .work-desc,
+html[data-theme="dark"] .unverified,html[data-theme="dark"] .empty-note{color:#a6baab}
+html[data-theme="dark"] .mdlist{border-color:#65866d}
+html[data-theme="dark"] :is(.op-title,.timeline-title,.work-title,.h1,.synthesis h2,.note-head h2){color:#eff2eb}
+/* Codex's official icon uses light background in its SVG. Preserve that backdrop
+   for clarity while keeping all other model icons on dark, neutral tiles. */
+html[data-theme="dark"] .logo.codex{background:#edf1ed;border-color:#728176}
+html[data-theme="dark"] .logo.codex svg{color:#243a2b}
+@media(prefers-reduced-motion:reduce){.theme-switch select{transition:none}}

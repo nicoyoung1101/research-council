@@ -1,0 +1,67 @@
+const fs=require('fs'),path=require('path'),os=require('os'),{spawn}=require('child_process'),assert=require('assert/strict');
+let playwright;try{playwright=require('playwright')}catch{playwright=require(path.join(process.env.RC_NODE_MODULES||path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules'),'playwright'))}
+const root=path.resolve(__dirname,'..'),data=fs.mkdtempSync(path.join(os.tmpdir(),'council-send-')),checks=[];
+const check=(v,name)=>{assert.ok(v,name);checks.push(name)};
+(async()=>{
+ const child=spawn(process.env.PYTHON||'python3',[path.join(__dirname,'ui_fixture.py'),data],{cwd:root});child.stderr.pipe(process.stderr);let browser;
+ try{
+  const url=await new Promise((resolve,reject)=>{child.stdout.once('data',chunk=>resolve(JSON.parse(chunk.toString()).url));child.once('exit',code=>reject(Error('Fixture exited '+code)))});
+  browser=await playwright.chromium.launch({headless:true,executablePath:process.env.RC_CHROME||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
+  const context=await browser.newContext({viewport:{width:1600,height:960}}),page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto(url);await page.waitForFunction(()=>!!window.RC_DEBUG);
+  await page.locator('#langSelect').selectOption('en');await page.locator('#focusToggle').click();
+  await page.locator('#addAgentRail').click();await page.locator('#engineSelect').selectOption('live');await page.locator('.registry-card').first().locator('[data-field=rules]').fill('SLOW_TEST');await page.locator('#registrySave').click();
+  await page.locator('#intervention').fill('MANUAL_ADDITION');await page.locator('#sendIntervention').click();
+  await page.evaluate(()=>CouncilBridge.flush());
+  check((await page.evaluate(()=>RC_DEBUG.getState())).session.independentCount===0,'manual send keeps explicit execution control');
+  check((await page.locator('.live-banner').first().textContent()).includes('Manual mode'),'manual send explains the next action persistently');
+  check(await page.locator('.opinion .agent-spinner').count()===0,'idle agents do not show a thinking indicator');
+  await page.locator('#runModeSelect').selectOption('semi');
+  await page.locator('#intervention').fill('SHARED_INITIAL_ADDITION');await page.locator('#sendIntervention').click();
+  check((await page.locator('.live-banner').first().textContent()).match(/Starting|starting|Running|Checking/),'send immediately shows startup progress');
+  await page.locator('#intervention').fill('LATER_QUEUED_ADDITION');await page.locator('#sendIntervention').click();
+  await page.waitForFunction(()=>RC_DEBUG.getState().session.independentCount===1&&!!RC_DEBUG.getState().session.live.pending);
+  check(await page.locator('.opinion [data-agent-state=thinking]').count()===1,'slower agent shows Thinking while its peer has completed');
+  check(await page.locator('.opinion [data-agent-state=complete]').count()===1,'returned peer shows Completed immediately');
+  check(await page.locator('.opinion[aria-busy=true]').count()===1,'only the running agent is marked busy');
+  for(const [lang,label] of [['zh','正在思考…'],['ja','考えています…'],['en','Thinking…']]){await page.locator('#langSelect').selectOption(lang);check((await page.locator('.opinion [data-agent-state=thinking]').textContent()).includes(label),'thinking status localized in '+lang)}
+  await page.locator('#langSelect').selectOption('zh');fs.mkdirSync(path.join(root,'test-results'),{recursive:true});await page.screenshot({path:path.join(root,'test-results','thinking-ui.png')});await page.locator('#langSelect').selectOption('en');
+  check((await page.locator('.opinion').allTextContents()).some(text=>text.includes('fixture answer')),'completed answer is visible before the slower peer finishes');
+  await page.waitForFunction(()=>RC_DEBUG.getState().session.independentCount===2&&!RC_DEBUG.getState().session.live.pending);
+  check(true,'semi-automatic Send starts independent answers');
+  check(await page.locator('.opinion .agent-spinner').count()===0&&await page.locator('.opinion [data-agent-state=complete]').count()===2,'completed calls stop all thinking indicators');
+  const state=await page.evaluate(()=>RC_DEBUG.getState().session);
+  const job=JSON.parse(fs.readFileSync(path.join(data,'jobs',state.live.lastJob+'.json')));
+  check(job.request.initialInstructions.some(x=>x.text==='SHARED_INITIAL_ADDITION'),'shared startup addition reaches both independent agents');
+  check(!job.request.initialInstructions.some(x=>x.text==='LATER_QUEUED_ADDITION'),'message during a call does not change the frozen independent packet');
+  check((await page.locator('#stageArea').textContent()).includes('LATER_QUEUED_ADDITION'),'queued addition remains visible');
+  await page.locator('#runModeSelect').selectOption('manual');await page.evaluate(()=>CouncilBridge.flush());
+  const oldId=state.id,page2=await context.newPage();await page2.goto(url);await page2.waitForFunction(()=>!!window.RC_DEBUG);
+  await page2.locator('#editNotes').click();await page2.locator('#notesEdit').fill('# REMOTE_NOTES');await page2.locator('#editNotes').click();await page2.evaluate(()=>CouncilBridge.flush());
+  await page.locator('#intervention').fill('KEEP_LOCAL_MESSAGE');await page.locator('#sendIntervention').click();
+  await page.getByRole('button',{name:'Keep discussion and reconnect',exact:true}).waitFor();
+  check(true,'save conflict offers an explicit recovery action');
+  await page.getByRole('button',{name:'Keep discussion and reconnect',exact:true}).click();
+  await page.waitForFunction(()=>RC_DEBUG.getState().session.id.startsWith('s-recovered-')&&!CouncilBridge.error);
+  const restored=await page.evaluate(()=>RC_DEBUG.getState().session);
+  check(restored.interventions.some(x=>x.text==='KEEP_LOCAL_MESSAGE'),'recovery preserves the unsaved local message');
+  check(restored.independentCount===2,'recovery preserves completed agent answers');
+  await page.evaluate(()=>CouncilBridge.flush());
+  const disk=JSON.parse(fs.readFileSync(path.join(data,'state.json')));
+  check(disk.sessions.some(s=>s.id===oldId&&s.editedMarkdown==='# REMOTE_NOTES'),'recovery preserves the other window notes in the original session');
+  check(disk.sessions.some(s=>s.id===restored.id),'conflicting local edit is saved as a separate session');
+  await page2.close();
+  await page.locator('#runModeSelect').selectOption('semi');await page.locator('#intervention').fill('AFTER_RECOVERY');await page.locator('#sendIntervention').click();
+  await page.waitForFunction(()=>{const r=RC_DEBUG.getState().session.live.controller;return r?.questions?.at(-1)?.status==='running'&&r.turns.some(t=>t.kind==='question'&&t.id==='codex')});
+  check(await page.locator('[data-flow-stage=debate] .turn-box').filter({hasText:'Prior side messages:'}).count()===1,'focused replies publish immediately while a peer is still thinking');
+  check(await page.locator('.opinion').count()===2,'independent answers remain visible during debate');
+  await page.waitForFunction(()=>RC_DEBUG.getState().session.live.controller?.questions?.at(-1)?.status==='complete');
+  check(true,'Send answers a question after recovery without requiring another start click');
+  const debateState=await page.evaluate(()=>RC_DEBUG.getState().session),debateJob=JSON.parse(fs.readFileSync(path.join(data,'jobs',debateState.live.lastJob+'.json')));
+  check(debateJob.request.agents.length===2&&debateJob.request.kind==='question'&&debateJob.request.transcript.filter(t=>t.type==='independent').length===2,'both question recipients receive the preserved independent answers');
+  await page.evaluate(()=>CouncilBridge.flush());await page.reload();await page.waitForFunction(()=>!!window.RC_DEBUG);
+  check((await page.evaluate(()=>RC_DEBUG.getState())).session.id===restored.id,'recovered discussion survives reload');
+  check(errors.length===0,'no JavaScript errors');
+  console.log(JSON.stringify({checks,errors},null,2));
+ }finally{if(browser)await browser.close();child.kill('SIGINT');await new Promise(r=>child.once('exit',r));fs.rmSync(data,{recursive:true,force:true})}
+})().catch(e=>{console.error(e);process.exitCode=1});
